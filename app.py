@@ -114,7 +114,16 @@ if not SERVICE_ACCOUNT_JSON or not GOOGLE_SHEET_ID_CARTES:
 
 # Load service account credentials.  The JSON string is stored directly in the
 # environment to avoid persisting secrets on disk.
-creds_info = json.loads(SERVICE_ACCOUNT_JSON)
+#
+# When defined in a `.env` file the JSON is often quoted and contains escaped
+# quotes (e.g. `\"`).  Those escape characters break `json.loads` and caused the
+# application to crash at startup.  To make the parsing robust we attempt to
+# decode the JSON and, on failure, retry after stripping the escape characters.
+try:
+    creds_info = json.loads(SERVICE_ACCOUNT_JSON)
+except json.JSONDecodeError:
+    creds_info = json.loads(SERVICE_ACCOUNT_JSON.replace('\\', ''))
+
 credentials = Credentials.from_service_account_info(
     creds_info,
     scopes=[

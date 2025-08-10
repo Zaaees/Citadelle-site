@@ -1,29 +1,27 @@
 {% extends "layout.html" %}
 
 {% block content %}
-  <div class="container py-5">
-    <h1 class="mb-4 text-center">Citadelle – Rituel de tirage</h1>
-  {% with messages = get_flashed_messages(with_categories=true) %}
-    {% if messages %}
-      {% for category, message in messages %}
-        <div class="alert alert-{{ 'danger' if category == 'error' else category }}" role="alert">
-          {{ message }}
-        </div>
-      {% endfor %}
-    {% endif %}
-  {% endwith %}
-  {% if user %}
-      <div class="text-center">
-        <p>Bienvenue, <strong>{{ user.username }}</strong> !</p>
-        <p>Les esprits t'accordent un tirage quotidien. Chaque rituel dévoile trois cartes mystiques issues des mêmes arcanes que le bot Discord.</p>
-        <a href="{{ url_for('draw') }}" class="btn btn-primary btn-lg">Tirer mes cartes</a>
-        <a href="{{ url_for('logout') }}" class="btn btn-link">Déconnexion</a>
-      </div>
-    {% else %}
-      <div class="text-center">
-        <p>Connectez-vous avec votre compte Discord pour commencer vos tirages journaliers.</p>
-      <a href="{{ url_for('login') }}" class="btn btn-success btn-lg">Se connecter avec Discord</a>
+  <!-- Hero section with mystical background -->
+  <div class="hero text-center">
+    <div class="container">
+      <h1 class="display-4 mb-3">Citadelle – Rituel de tirage</h1>
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          {% for category, message in messages %}
+            <div class="alert alert-{{ 'danger' if category == 'error' else category }}" role="alert">
+              {{ message }}
+            </div>
+          {% endfor %}
+        {% endif %}
+      {% endwith %}
+      {% if user %}
+        <p class="lead">Les esprits t'accordent un tirage quotidien. Chaque rituel dévoile trois cartes mystiques issues des mêmes arcanes que le bot Discord.</p>
+        <a href="{{ url_for('draw') }}" class="btn btn-primary btn-lg mt-3">Tirer mes cartes</a>
+        <a href="{{ url_for('logout') }}" class="btn btn-link mt-3">Déconnexion</a>
+      {% else %}
+        <p class="lead">Connectez‑vous avec votre compte Discord pour commencer vos tirages journaliers.</p>
+        <a href="{{ url_for('login') }}" class="btn btn-success btn-lg mt-3">Se connecter avec Discord</a>
+      {% endif %}
     </div>
-  {% endif %}
-</div>
+  </div>
 {% endblock %}

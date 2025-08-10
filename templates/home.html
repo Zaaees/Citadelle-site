@@ -1,8 +1,8 @@
 {% extends "layout.html" %}
 
 {% block content %}
-<div class="container py-5">
-  <h1 class="mb-4 text-center">Citadelle – Tirage de cartes</h1>
+  <div class="container py-5">
+    <h1 class="mb-4 text-center">Citadelle – Rituel de tirage</h1>
   {% with messages = get_flashed_messages(with_categories=true) %}
     {% if messages %}
       {% for category, message in messages %}
@@ -13,15 +13,15 @@
     {% endif %}
   {% endwith %}
   {% if user %}
-    <div class="text-center">
-      <p>Bienvenue, <strong>{{ user.username }}</strong> !</p>
-      <p>Vous pouvez effectuer un tirage de cartes une fois par jour. Chaque tirage vous attribue trois cartes aléatoires basées sur les mêmes données que le bot Discord.</p>
-      <a href="{{ url_for('draw') }}" class="btn btn-primary btn-lg">Tirer mes cartes</a>
-      <a href="{{ url_for('logout') }}" class="btn btn-link">Déconnexion</a>
-    </div>
-  {% else %}
-    <div class="text-center">
-      <p>Connectez-vous avec votre compte Discord pour commencer vos tirages journaliers.</p>
+      <div class="text-center">
+        <p>Bienvenue, <strong>{{ user.username }}</strong> !</p>
+        <p>Les esprits t'accordent un tirage quotidien. Chaque rituel dévoile trois cartes mystiques issues des mêmes arcanes que le bot Discord.</p>
+        <a href="{{ url_for('draw') }}" class="btn btn-primary btn-lg">Tirer mes cartes</a>
+        <a href="{{ url_for('logout') }}" class="btn btn-link">Déconnexion</a>
+      </div>
+    {% else %}
+      <div class="text-center">
+        <p>Connectez-vous avec votre compte Discord pour commencer vos tirages journaliers.</p>
       <a href="{{ url_for('login') }}" class="btn btn-success btn-lg">Se connecter avec Discord</a>
     </div>
   {% endif %}

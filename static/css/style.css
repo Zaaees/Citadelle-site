@@ -1,0 +1,58 @@
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@700&family=Roboto&display=swap');
+
+body {
+  font-family: 'Roboto', sans-serif;
+  background: radial-gradient(circle at top, #1b2735, #090a0f);
+  color: #f8f9fa;
+  min-height: 100vh;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Cinzel', serif;
+  color: #ffd700;
+}
+
+.btn-primary {
+  background-color: #6f42c1;
+  border-color: #6f42c1;
+}
+
+.btn-primary:hover {
+  background-color: #59359a;
+  border-color: #59359a;
+}
+
+.card-wrapper {
+  perspective: 1000px;
+}
+
+.draw-card {
+  opacity: 0;
+  transform: translateY(-50px) rotateY(90deg);
+  transition: transform 0.8s ease, opacity 0.8s ease;
+  transform-style: preserve-3d;
+  background-color: #1e1e2f;
+  border: 2px solid #ffd700;
+  box-shadow: 0 0 15px rgba(255, 215, 0, 0.4);
+}
+
+.draw-card img {
+  border-bottom: 2px solid #ffd700;
+}
+
+.draw-card.revealed {
+  opacity: 1;
+  transform: translateY(0) rotateY(0deg);
+}
+
+.card-img-top {
+  max-height: 200px;
+  object-fit: cover;
+}
+.btn-link {
+  color: #ffd700;
+}
+.btn-link:hover {
+  color: #e6c200;
+}
+

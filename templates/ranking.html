@@ -1,0 +1,36 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="container py-5">
+  <h1 class="mb-4 text-center">Classement des collectionneurs</h1>
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      {% for category, message in messages %}
+        <div class="alert alert-{{ 'danger' if category == 'error' else category }}" role="alert">
+          {{ message }}
+        </div>
+      {% endfor %}
+    {% endif %}
+  {% endwith %}
+  <div class="table-responsive">
+    <table class="table table-dark table-bordered table-hover">
+      <thead>
+        <tr>
+          <th scope="col">Position</th>
+          <th scope="col">Utilisateur</th>
+          <th scope="col">Total de cartes</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in ranking %}
+        <tr>
+          <th scope="row">{{ loop.index }}</th>
+          <td>{{ row.user_id }}</td>
+          <td>{{ row.count }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

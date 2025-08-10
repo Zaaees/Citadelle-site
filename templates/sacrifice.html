@@ -1,0 +1,50 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="container py-5">
+  <h1 class="mb-4 text-center">Tirage sacrificiel</h1>
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      {% for category, message in messages %}
+        <div class="alert alert-{{ 'danger' if category == 'error' else category }}" role="alert">
+          {{ message }}
+        </div>
+      {% endfor %}
+    {% endif %}
+  {% endwith %}
+  <form method="post" action="{{ url_for('sacrifice') }}">
+    <p class="lead">Sélectionnez une carte à sacrifier afin d'invoquer une nouvelle carte rare :</p>
+    <div class="row">
+      {% for card in user_cards %}
+      <div class="col-6 col-sm-4 col-md-3 mb-3">
+        <div class="form-check">
+          <input class="form-check-input" type="radio" name="card_key" id="card{{ loop.index }}" value="{{ card.category }}|{{ card.name }}" required>
+          <label class="form-check-label" for="card{{ loop.index }}">
+            {{ card.name }} ({{ card.category }}) - {{ card.count }}
+          </label>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    <button class="btn btn-danger mt-3" type="submit">Sacrifier et tirer</button>
+  </form>
+
+  {% if new_card %}
+  <hr>
+  <h2 class="text-center mt-4">Nouvelle carte obtenue :</h2>
+  <div class="row justify-content-center">
+    <div class="col-12 col-sm-6 col-md-4 mb-4">
+      <div class="card draw-card shadow-sm h-100 revealed">
+        {% if new_card.image_url %}
+        <img src="{{ new_card.image_url }}" class="card-img-top" alt="{{ new_card.name }}">
+        {% endif %}
+        <div class="card-body text-center">
+          <h5 class="card-title">{{ new_card.name }}</h5>
+          <p class="card-text">{{ new_card.category }}</p>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

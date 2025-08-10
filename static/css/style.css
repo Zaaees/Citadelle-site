@@ -13,30 +13,70 @@ h1, h2, h3, h4, h5, h6 {
   color: #ffd700;
 }
 
-/* Hero section */
+/* Rotating galaxy hero */
 .hero {
-  background-image: url('../images/hero-bg.png');
-  background-size: cover;
-  background-position: center;
-  padding: 100px 0;
   position: relative;
+  min-height: 80vh;
   color: #f8f9fa;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
 }
 
-/* Overlay to darken the background image */
+/* Rotating background image on hero section */
 .hero::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background-image: url('../images/galaxy-swirl.png');
+  background-size: cover;
+  background-repeat: no-repeat;
+  animation: rotate 90s linear infinite;
+  opacity: 0.6;
+  z-index: -2;
+}
+
+/* Dark overlay to enhance contrast */
+.hero::after {
   content: '';
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(0, 0, 0, 0.6);
+  z-index: -1;
 }
 
+/* Rotation animation */
+@keyframes rotate {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Adjust hero text layering */
 .hero > * {
   position: relative;
   z-index: 1;
+}
+
+/* Custom navbar */
+.navbar-custom {
+  background-color: #0d1b2a;
+}
+
+.navbar-custom .navbar-brand,
+.navbar-custom .nav-link {
+  color: #ffd700;
+}
+
+.navbar-custom .nav-link:hover {
+  color: #e6c200;
 }
 
 /* Buttons */

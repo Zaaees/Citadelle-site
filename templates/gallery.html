@@ -1,0 +1,35 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="container py-5">
+  <h1 class="mb-4 text-center">Ma galerie de cartes</h1>
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      {% for category, message in messages %}
+        <div class="alert alert-{{ 'danger' if category == 'error' else category }}" role="alert">
+          {{ message }}
+        </div>
+      {% endfor %}
+    {% endif %}
+  {% endwith %}
+  {% if cards %}
+  <div class="row">
+    {% for card in cards %}
+    <div class="col-6 col-sm-4 col-md-3 mb-4">
+      <div class="card draw-card shadow-sm h-100 revealed">
+        {% if card.image_url %}
+        <img src="{{ card.image_url }}" class="card-img-top" alt="{{ card.name }}">
+        {% endif %}
+        <div class="card-body text-center">
+          <h5 class="card-title">{{ card.name }}</h5>
+          <p class="card-text">{{ card.category }} ({{ card.count }})</p>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+    <p class="text-center">Vous n'avez pas encore de cartes dans votre collection.</p>
+  {% endif %}
+</div>
+{% endblock %}

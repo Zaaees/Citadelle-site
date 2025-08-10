@@ -1,0 +1,65 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="container py-5">
+  <h1 class="mb-4 text-center">Tableau d'échanges</h1>
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      {% for category, message in messages %}
+        <div class="alert alert-{{ 'danger' if category == 'error' else category }}" role="alert">
+          {{ message }}
+        </div>
+      {% endfor %}
+    {% endif %}
+  {% endwith %}
+  <h2 class="h4 mb-3">Offres disponibles</h2>
+  {% if offers %}
+  <div class="row">
+    {% for offer in offers %}
+    <div class="col-12 col-md-6 col-lg-4 mb-4">
+      <div class="card draw-card shadow-sm h-100 revealed">
+        {% if offer.image_url %}
+        <img src="{{ offer.image_url }}" class="card-img-top" alt="{{ offer.name }}">
+        {% endif %}
+        <div class="card-body">
+          <h5 class="card-title text-center">{{ offer.name }}</h5>
+          <p class="card-text text-center">{{ offer.category }}</p>
+          <p class="text-center"><small>Proposé par ID {{ offer.owner_id }}</small></p>
+          <form method="post" action="{{ url_for('take_offer', offer_id=offer.id) }}">
+            <div class="mb-2">
+              <select class="form-select" name="offered_card" required>
+                <option value="" disabled selected>Sélectionner votre carte</option>
+                {% for card in user_cards %}
+                  <option value="{{ card.category }}|{{ card.name }}">{{ card.name }} ({{ card.category }})</option>
+                {% endfor %}
+              </select>
+            </div>
+            <button type="submit" class="btn btn-primary w-100">Échanger</button>
+          </form>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+    <p class="text-center">Aucune offre n'est disponible pour le moment.</p>
+  {% endif %}
+
+  <hr class="my-5">
+  <h2 class="h4 mb-3">Déposer une carte</h2>
+  <form method="post" action="{{ url_for('deposit_offer') }}" class="row g-3">
+    <div class="col-12 col-md-6">
+      <label for="card" class="form-label">Choisissez une carte de votre collection :</label>
+      <select class="form-select" id="card" name="card_key" required>
+        <option value="" disabled selected>Choisir une carte…</option>
+        {% for card in user_cards %}
+          <option value="{{ card.category }}|{{ card.name }}">{{ card.name }} ({{ card.category }})</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-12 col-md-6 d-flex align-items-end">
+      <button type="submit" class="btn btn-success">Déposer</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

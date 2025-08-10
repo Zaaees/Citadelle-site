@@ -396,9 +396,7 @@ def callback():
     if not DISCORD_CLIENT_ID or not DISCORD_CLIENT_SECRET or not DISCORD_REDIRECT_URI:
         flash('Discord OAuth2 is not configured.  Cannot process callback.', 'error')
         return redirect(url_for('index'))
-    token = discord_oauth.authorize_access_token(
-        redirect_uri=os.getenv("DISCORD_REDIRECT_URI")
-    )
+    token = discord_oauth.authorize_access_token()
 
     if not token:
         flash('Failed to retrieve Discord access token.', 'error')

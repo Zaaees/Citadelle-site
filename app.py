@@ -24,6 +24,7 @@ operations are simplified and concurrency aspects are not fully handled.
 import os
 import json
 import random
+import hashlib
 from datetime import datetime
 from functools import wraps
 from typing import List, Dict, Tuple, Optional, Any
@@ -125,6 +126,9 @@ sheet_daily_draw = get_or_create_worksheet('Tirages Journaliers', rows=1000, col
 # Exchange board worksheet.  This sheet tracks exchange offers.
 sheet_exchange = get_or_create_worksheet('Tableau Echanges', rows=1000, cols=4)
 
+# Sacrificial draw worksheet.  Tracks sacrificial draws by user ID and date.
+sheet_sacrificial_draw = get_or_create_worksheet('Tirages Sacrificiels', rows=1000, cols=2)
+
 ###############################################################################
 # Card configuration and loading from Google Drive
 ###############################################################################
@@ -156,6 +160,30 @@ FOLDER_IDS = {
 }
 
 cards_by_category: Dict[str, List[Dict[str, str]]] = {}
+
+# Expose a mapping from rarity category to a distinct border colour.  These
+# values are used in the gallery template to colour‑code cards according to
+# their rarity.  Feel free to adjust the hex values to better match your
+# visual theme.  The order of ``ALL_CATEGORIES`` reflects descending
+# rarity (Secrète being the rarest and Élèves the most common).
+CATEGORY_COLORS: Dict[str, str] = {
+    "Secrète": "#f1c40f",       # Gold
+    "Fondateur": "#e74c3c",    # Red
+    "Historique": "#1abc9c",    # Teal
+    "Maître": "#9b59b6",        # Purple
+    "Black Hole": "#34495e",    # Dark blue/grey
+    "Architectes": "#3498db",   # Blue
+    "Professeurs": "#27ae60",   # Green
+    "Autre": "#95a5a6",        # Grey
+    "Élèves": "#bdc3c7",       # Light grey
+}
+
+# Maintain a simple in‑memory mapping between Discord user IDs and their
+# usernames.  When a user logs in via Discord OAuth we populate this map so
+# that the site can display names instead of raw numeric IDs.  Note that
+# usernames may change over time; this mapping will reflect the most
+# recently seen name for a given ID.
+usernames_map: Dict[str, str] = {}
 
 def load_card_files() -> None:
     """Populate ``cards_by_category`` by listing image files in each Drive folder."""
@@ -375,9 +403,11 @@ def compute_user_ranking() -> List[Dict[str, Any]]:
                     except Exception:
                         continue
                     user_counts[uid] = user_counts.get(uid, 0) + count
-        ranking = [
-            {'user_id': uid, 'count': cnt} for uid, cnt in user_counts.items()
-        ]
+        ranking = []
+        for uid, cnt in user_counts.items():
+            uid_str = str(uid)
+            uname = usernames_map.get(uid_str) or f"Utilisateur {uid_str}"
+            ranking.append({'user_id': uid_str, 'username': uname, 'count': cnt})
         ranking.sort(key=lambda x: x['count'], reverse=True)
         return ranking
     except Exception as e:
@@ -404,9 +434,13 @@ def get_exchange_board() -> List[Dict[str, Any]]:
                         file_id = f['id']
                         break
                 image_url = url_for('card_image', file_id=file_id) if file_id else ''
+                # Convert owner_id to string for lookup in usernames_map
+                owner_id_str = str(owner_id)
+                owner_name = usernames_map.get(owner_id_str) or f"Utilisateur {owner_id_str}"
                 offers.append({
                     'id': offer_id,
                     'owner_id': owner_id,
+                    'owner_name': owner_name,
                     'category': category,
                     'name': name,
                     'timestamp': timestamp,
@@ -416,6 +450,255 @@ def get_exchange_board() -> List[Dict[str, Any]]:
     except Exception as e:
         app.logger.error(f"Error retrieving exchange board: {e}")
         return []
+
+# ----------------------------------------------------------------------------
+# Sacrificial draw helpers
+# ----------------------------------------------------------------------------
+def can_perform_sacrificial_draw(user_id: int) -> bool:
+    """
+    Determine whether the user can perform a sacrificial draw today.
+
+    Similar to ``can_perform_daily_draw`` this checks a dedicated worksheet
+    (``Tirages Sacrificiels``) for an entry matching the user ID and the
+    current date.  If no entry exists or the date differs from today the
+    sacrifice is allowed.
+
+    Args:
+        user_id: The Discord user ID of the player.
+
+    Returns:
+        True if the user can perform a sacrificial draw, False otherwise.
+    """
+    paris_tz = pytz.timezone("Europe/Paris")
+    today = datetime.now(paris_tz).strftime("%Y-%m-%d")
+    user_id_str = str(user_id)
+    try:
+        all_rows = sheet_sacrificial_draw.get_all_values()
+        for row in all_rows:
+            if row and row[0] == user_id_str:
+                # If the user has already drawn today, the second column will
+                # contain today's date.  Otherwise it's either empty or from a
+                # previous day and can be overwritten.
+                if len(row) > 1 and row[1] == today:
+                    return False
+                else:
+                    return True
+        return True
+    except Exception as e:
+        app.logger.error(f"Error checking sacrificial draw for {user_id}: {e}")
+        return False
+
+
+def record_sacrificial_draw(user_id: int) -> None:
+    """
+    Record that the user has performed their sacrificial draw today.
+
+    Updates or appends an entry in the ``Tirages Sacrificiels`` worksheet with
+    the current date.  The date is stored in the second column of the row
+    corresponding to the user.
+
+    Args:
+        user_id: The Discord user ID of the player.
+    """
+    paris_tz = pytz.timezone("Europe/Paris")
+    today = datetime.now(paris_tz).strftime("%Y-%m-%d")
+    user_id_str = str(user_id)
+    try:
+        all_rows = sheet_sacrificial_draw.get_all_values()
+        for idx, row in enumerate(all_rows):
+            if row and row[0] == user_id_str:
+                sheet_sacrificial_draw.update(f"B{idx + 1}", today)
+                return
+        # No existing entry – append a new row
+        sheet_sacrificial_draw.append_row([user_id_str, today])
+    except Exception as e:
+        app.logger.error(f"Error recording sacrificial draw for {user_id}: {e}")
+
+
+def select_daily_sacrificial_cards(user_id: int) -> List[Tuple[str, str]]:
+    """
+    Deterministically select up to five cards from the user's collection for
+    sacrificial draw.
+
+    The algorithm mirrors the behaviour of the original Discord bot: it uses
+    a deterministic seed derived from the user's ID and the current date
+    (Paris timezone) so that the same cards are offered throughout a given
+    day.  Cards are chosen from the user's inventory in proportion to the
+    number of copies owned.  Only non‑Full variants are considered (this
+    implementation assumes card names do not include ``(Full)`` as we work
+    purely with the base names).  The resulting list contains unique
+    ``(category, name)`` pairs.
+
+    Args:
+        user_id: The Discord user ID of the player.
+
+    Returns:
+        A list of up to five (category, name) tuples representing the cards
+        selected for sacrifice.  The list may be shorter if the user owns
+        fewer than five distinct non‑Full cards.
+    """
+    # Build a mapping of the user's owned cards and their counts
+    inventory = get_user_inventory(user_id)
+    card_counts: Dict[Tuple[str, str], int] = {}
+    for item in inventory:
+        category = item.get('category')
+        name = item.get('name')
+        count = item.get('count', 0)
+        # Skip Full variants if any appear (defensive programming)
+        if name and '(Full)' in name:
+            continue
+        if count > 0:
+            card_counts[(category, name)] = count
+    # No eligible cards
+    if not card_counts:
+        return []
+    # Create a weighted list where each card appears as many times as it is owned
+    weighted_cards: List[Tuple[str, str]] = []
+    for card, count in card_counts.items():
+        weighted_cards.extend([card] * count)
+    # Create deterministic random generator based on user ID and current date
+    paris_tz = pytz.timezone("Europe/Paris")
+    today = datetime.now(paris_tz).strftime("%Y-%m-%d")
+    seed_string = f"{user_id}-{today}"
+    # Use MD5 to derive a stable integer seed
+    seed = int(hashlib.md5(seed_string.encode()).hexdigest(), 16) % (2 ** 32)
+    rng = random.Random(seed)
+    selected: List[Tuple[str, str]] = []
+    selected_set: set = set()
+    attempts = 0
+    max_attempts = len(weighted_cards) * 2 if weighted_cards else 0
+    # Select up to five unique cards
+    while len(selected) < 5 and attempts < max_attempts:
+        card = rng.choice(weighted_cards)
+        if card not in selected_set:
+            selected.append(card)
+            selected_set.add(card)
+        attempts += 1
+    return selected
+
+
+def batch_remove_cards_from_user(user_id: int, cards: List[Tuple[str, str]]) -> bool:
+    """
+    Remove one instance of each specified card from the user's inventory.
+
+    This helper iterates over the list of ``(category, name)`` tuples and
+    removes one copy via ``remove_card_from_user``.  If any removal fails,
+    the function returns False.  It does not perform rollback on partial
+    failure; however the sacrificial draw route uses this helper only when
+    the inventory has already been validated.
+
+    Args:
+        user_id: The Discord user ID.
+        cards: A list of (category, name) pairs to remove.
+
+    Returns:
+        True if all removals succeed, False otherwise.
+    """
+    for category, name in cards:
+        if not remove_card_from_user(user_id, category, name):
+            return False
+    return True
+
+
+def handle_sacrifice() -> Any:
+    """
+    Core implementation of the sacrificial draw route.
+
+    This helper encapsulates the full logic required for the sacrificial draw
+    without exposing the legacy behaviour.  It is called by the public
+    ``sacrifice`` view, which simply delegates to this function and returns
+    its result.
+
+    Returns:
+        A rendered template response for the sacrificial draw page.
+    """
+    user = session.get('user')
+    if not user:
+        return redirect(url_for('login'))
+    user_id = int(user['id'])
+    # Check if the user has already performed a sacrificial draw today
+    if not can_perform_sacrificial_draw(user_id):
+        return render_template(
+            'sacrifice.html',
+            daily_cards=None,
+            new_cards=None,
+            sacrifice_done=True,
+            error_message="Vous avez déjà effectué votre tirage sacrificiel aujourd'hui. Revenez demain !",
+            category_colors=CATEGORY_COLORS,
+        )
+    # Determine the set of cards selected for today's sacrifice
+    selected_pairs = select_daily_sacrificial_cards(user_id)
+    # Require at least five cards for the sacrificial draw
+    if len(selected_pairs) < 5:
+        error_message = (
+            f"Vous devez avoir au moins 5 cartes (hors variantes Full) pour effectuer un tirage sacrificiel. "
+            f"Vous en avez {len(selected_pairs)}."
+        )
+        return render_template(
+            'sacrifice.html',
+            daily_cards=None,
+            new_cards=None,
+            sacrifice_done=False,
+            error_message=error_message,
+            category_colors=CATEGORY_COLORS,
+        )
+    # Build display data for the selected cards: include count and image URL
+    inventory = get_user_inventory(user_id)
+    counts_map: Dict[Tuple[str, str], int] = {}
+    for item in inventory:
+        counts_map[(item['category'], item['name'])] = item['count']
+    daily_cards: List[Dict[str, Any]] = []
+    for (cat, name) in selected_pairs:
+        count = counts_map.get((cat, name), 0)
+        file_id: Optional[str] = None
+        for f in cards_by_category.get(cat, []):
+            if f['name'].rsplit('.', 1)[0] == name:
+                file_id = f['id']
+                break
+        img_url = url_for('card_image', file_id=file_id) if file_id else ''
+        daily_cards.append({'category': cat, 'name': name, 'count': count, 'image_url': img_url})
+    # On POST with confirmation perform the sacrifice
+    if request.method == 'POST' and request.form.get('confirm') == '1':
+        # Remove one instance of each selected card
+        if not batch_remove_cards_from_user(user_id, selected_pairs):
+            flash('Erreur lors du retrait des cartes sacrifiées.', 'error')
+            return render_template(
+                'sacrifice.html',
+                daily_cards=daily_cards,
+                new_cards=None,
+                sacrifice_done=False,
+                error_message=None,
+                category_colors=CATEGORY_COLORS,
+            )
+        # Draw three new cards using the weighted distribution
+        drawn = draw_cards(3)
+        new_cards: List[Dict[str, Any]] = []
+        for category, file_info in drawn:
+            file_name = file_info['name']
+            display_name = file_name.rsplit('.', 1)[0]
+            add_card_to_user(user_id, category, display_name)
+            img_url = url_for('card_image', file_id=file_info['id'])
+            new_cards.append({'category': category, 'name': display_name, 'image_url': img_url})
+        # Record the sacrificial draw and notify the user
+        record_sacrificial_draw(user_id)
+        flash('Sacrifice accompli ! Voici vos nouvelles cartes.', 'success')
+        return render_template(
+            'sacrifice.html',
+            daily_cards=None,
+            new_cards=new_cards,
+            sacrifice_done=True,
+            error_message=None,
+            category_colors=CATEGORY_COLORS,
+        )
+    # Otherwise (GET request) show the selected cards awaiting confirmation
+    return render_template(
+        'sacrifice.html',
+        daily_cards=daily_cards,
+        new_cards=None,
+        sacrifice_done=False,
+        error_message=None,
+        category_colors=CATEGORY_COLORS,
+    )
 
 def add_exchange_offer(user_id: int, category: str, name: str) -> None:
     """Add a new exchange offer to the board."""
@@ -463,12 +746,21 @@ def callback() -> Any:
         return redirect(url_for('index'))
     resp = discord_oauth.get('users/@me')
     user_info = resp.json()
+    # Persist the user's basic info in the session
     session['user'] = {
         'id': user_info.get('id'),
         'username': user_info.get('username'),
         'discriminator': user_info.get('discriminator'),
         'avatar': user_info.get('avatar'),
     }
+    # Record the username for this ID in our global mapping.  This allows us
+    # to display human‑readable names in the ranking and exchange views.
+    try:
+        uid = str(user_info.get('id'))
+        uname = user_info.get('username') or f"User {uid}"
+        usernames_map[uid] = uname
+    except Exception:
+        pass
     return redirect(url_for('index'))
 
 @app.route('/logout')
@@ -510,7 +802,8 @@ def draw() -> Any:
             'image_url': img_url,
         })
     record_daily_draw(user_id)
-    return render_template('draw.html', cards=display_cards)
+    # Provide category colours so the draw template can colour‑code cards
+    return render_template('draw.html', cards=display_cards, category_colors=CATEGORY_COLORS)
 
 @app.route('/gallery')
 @login_required
@@ -518,7 +811,22 @@ def gallery() -> Any:
     """Display the user's gallery of collected cards."""
     user_id = int(session['user']['id'])
     cards = get_user_inventory(user_id)
-    return render_template('gallery.html', cards=cards)
+    # Group cards by category for easier display
+    cards_by_category: Dict[str, List[Dict[str, Any]]] = {}
+    for card in cards:
+        cards_by_category.setdefault(card['category'], []).append(card)
+    # Sort each category alphabetically by card name
+    for cat_cards in cards_by_category.values():
+        cat_cards.sort(key=lambda c: c['name'])
+    # Render the gallery grouped by category.  The Jinja template expects
+    # ``cards_by_category`` keyed by category along with the ordered list
+    # ``categories`` and the colour mapping ``category_colors``.
+    return render_template(
+        'gallery.html',
+        cards_by_category=cards_by_category,
+        categories=ALL_CATEGORIES,
+        category_colors=CATEGORY_COLORS,
+    )
 
 @app.route('/ranking')
 def ranking() -> Any:
@@ -533,7 +841,13 @@ def exchange() -> Any:
     user_id = int(session['user']['id'])
     offers = get_exchange_board()
     user_cards = get_user_inventory(user_id)
-    return render_template('exchange.html', offers=offers, user_cards=user_cards)
+    # Pass the category colour mapping so that offers can be colour‑coded
+    return render_template(
+        'exchange.html',
+        offers=offers,
+        user_cards=user_cards,
+        category_colors=CATEGORY_COLORS,
+    )
 
 @app.route('/exchange/deposit', methods=['POST'])
 @login_required
@@ -588,7 +902,15 @@ def take_offer(offer_id: int) -> Any:
 @app.route('/sacrifice', methods=['GET', 'POST'])
 @login_required
 def sacrifice() -> Any:
-    """Allow the user to sacrifice a card to draw a new one."""
+    """
+    This function delegates all sacrificial draw logic to ``handle_sacrifice``.
+    The legacy implementation remains below for reference but will never be
+    executed because of the immediate return.
+    """
+    return handle_sacrifice()
+    # -------------------------------------------------------------------------
+    # Legacy implementation (no longer used)
+    # -------------------------------------------------------------------------
     user_id = int(session['user']['id'])
     user_cards = get_user_inventory(user_id)
     new_card: Optional[Dict[str, Any]] = None

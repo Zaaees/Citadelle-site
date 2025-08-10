@@ -17,14 +17,14 @@
   <div class="row">
     {% for offer in offers %}
     <div class="col-12 col-md-6 col-lg-4 mb-4">
-      <div class="card draw-card shadow-sm h-100 revealed">
+      <div class="card draw-card shadow-sm h-100 revealed" style="border-color: {{ category_colors[offer.category] }};">
         {% if offer.image_url %}
         <img src="{{ offer.image_url }}" class="card-img-top" alt="{{ offer.name }}">
         {% endif %}
         <div class="card-body">
           <h5 class="card-title text-center">{{ offer.name }}</h5>
           <p class="card-text text-center">{{ offer.category }}</p>
-          <p class="text-center"><small>Proposé par ID {{ offer.owner_id }}</small></p>
+          <p class="text-center"><small>Proposé par {{ offer.owner_name }}</small></p>
           <form method="post" action="{{ url_for('take_offer', offer_id=offer.id) }}">
             <div class="mb-2">
               <select class="form-select" name="offered_card" required>

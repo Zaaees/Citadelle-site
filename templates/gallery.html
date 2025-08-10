@@ -12,23 +12,30 @@
       {% endfor %}
     {% endif %}
   {% endwith %}
-  {% if cards %}
-  <div class="row">
-    {% for card in cards %}
-    <div class="col-6 col-sm-4 col-md-3 mb-4">
-      <div class="card draw-card shadow-sm h-100 revealed">
-        {% if card.image_url %}
-        <img src="{{ card.image_url }}" class="card-img-top" alt="{{ card.name }}">
-        {% endif %}
-        <div class="card-body text-center">
-          <h5 class="card-title">{{ card.name }}</h5>
-          <p class="card-text">{{ card.category }} ({{ card.count }})</p>
+  {# Iterate through categories in the order provided (rarest to most common) #}
+  {% set has_cards = false %}
+  {% for cat in categories %}
+    {% if cards_by_category.get(cat) %}
+      {% set has_cards = true %}
+      <h2 class="mt-4 mb-3" style="color: {{ category_colors[cat] }};">{{ cat }}</h2>
+      <div class="row">
+        {% for card in cards_by_category[cat] %}
+        <div class="col-6 col-sm-4 col-md-3 mb-4">
+          <div class="card draw-card shadow-sm h-100 revealed" style="border-color: {{ category_colors[cat] }};">
+            {% if card.image_url %}
+            <img src="{{ card.image_url }}" class="card-img-top" alt="{{ card.name }}">
+            {% endif %}
+            <div class="card-body text-center">
+              <h6 class="card-title mb-1">{{ card.name }}</h6>
+              <p class="card-text"><small>x{{ card.count }}</small></p>
+            </div>
+          </div>
         </div>
+        {% endfor %}
       </div>
-    </div>
-    {% endfor %}
-  </div>
-  {% else %}
+    {% endif %}
+  {% endfor %}
+  {% if not has_cards %}
     <p class="text-center">Vous n'avez pas encore de cartes dans votre collection.</p>
   {% endif %}
 </div>

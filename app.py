@@ -390,13 +390,16 @@ def login():
     redirect_uri = DISCORD_REDIRECT_URI
     return discord_oauth.authorize_redirect(redirect_uri)
 
-@app.route('/callback')
+@app.route('/auth/callback', methods=['GET'])
 def callback():
     """Discord OAuth2 callback: exchange code for token and fetch user info."""
     if not DISCORD_CLIENT_ID or not DISCORD_CLIENT_SECRET or not DISCORD_REDIRECT_URI:
         flash('Discord OAuth2 is not configured.  Cannot process callback.', 'error')
         return redirect(url_for('index'))
-    token = discord_oauth.authorize_access_token()
+    token = discord_oauth.authorize_access_token(
+        redirect_uri=os.getenv("DISCORD_REDIRECT_URI")
+    )
+
     if not token:
         flash('Failed to retrieve Discord access token.', 'error')
         return redirect(url_for('index'))

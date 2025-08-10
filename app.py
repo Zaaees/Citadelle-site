@@ -424,7 +424,10 @@ def get_exchange_board() -> List[Dict[str, Any]]:
             if idx == 0:
                 continue
             if len(row) >= 4:
-                owner_id, category, name, timestamp = row[:4]
+                # Unpack row values and pad missing fields with empty strings.  The
+                # expected order is owner_id, category, card name, timestamp, comment.
+                padded = row + [''] * (5 - len(row))
+                owner_id, category, name, timestamp, comment = padded[:5]
                 # Compose id based on row index (1‑based)
                 offer_id = idx
                 # Attempt to locate image file id
@@ -444,6 +447,7 @@ def get_exchange_board() -> List[Dict[str, Any]]:
                     'category': category,
                     'name': name,
                     'timestamp': timestamp,
+                    'comment': comment,
                     'image_url': image_url,
                 })
         return offers
@@ -700,11 +704,27 @@ def handle_sacrifice() -> Any:
         category_colors=CATEGORY_COLORS,
     )
 
-def add_exchange_offer(user_id: int, category: str, name: str) -> None:
-    """Add a new exchange offer to the board."""
+def add_exchange_offer(user_id: int, category: str, name: str, comment: str | None = None) -> None:
+    """Add a new exchange offer to the board.
+
+    A new offer consists of the user ID, card category, card name, timestamp and
+    an optional comment.  The comment allows players to leave a short note
+    describing their offer or desired trade.  It is stored in the fifth
+    column of the ``Tableau Echanges`` sheet.
+
+    Args:
+        user_id: Discord user ID of the offer owner.
+        category: Rarity category of the offered card.
+        name: Name of the offered card.
+        comment: Optional text comment associated with the offer.
+    """
     try:
         timestamp = datetime.now(pytz.timezone('Europe/Paris')).isoformat()
-        sheet_exchange.append_row([str(user_id), category, name, timestamp])
+        row = [str(user_id), category, name, timestamp]
+        # Append comment as fifth column if provided
+        if comment is not None:
+            row.append(comment)
+        sheet_exchange.append_row(row)
     except Exception as e:
         app.logger.error(f"Error adding exchange offer: {e}")
 
@@ -855,10 +875,12 @@ def deposit_offer() -> Any:
     """Handle depositing a card onto the exchange board."""
     user_id = int(session['user']['id'])
     card_key = request.form.get('card_key')
+    comment = request.form.get('comment')
     if card_key:
         category, name = card_key.split('|', 1)
         if remove_card_from_user(user_id, category, name):
-            add_exchange_offer(user_id, category, name)
+            # Record the offer with the optional comment (empty string treated as None)
+            add_exchange_offer(user_id, category, name, comment if comment else None)
             flash(f'Carte déposée sur le tableau : {name} ({category})', 'success')
         else:
             flash('Impossible de déposer cette carte (non disponible ou erreur).', 'error')

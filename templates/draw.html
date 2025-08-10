@@ -8,7 +8,7 @@
       {% for card in cards %}
         <div class="col-12 col-sm-6 col-md-4 mb-4">
           <div class="card draw-card shadow-sm h-100" style="border-color: {{ category_colors[card.category] }};">
-            <img src="{{ card.image_url }}" class="card-img-top" alt="{{ card.name }}" />
+            <img src="{{ card.image_url }}" class="card-img-top" alt="{{ card.name }}" loading="lazy" />
             <div class="card-body text-center">
               <h5 class="card-title">{{ card.name }}</h5>
               <p class="card-text">{{ card.category }}</p>

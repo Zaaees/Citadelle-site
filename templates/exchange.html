@@ -19,12 +19,15 @@
     <div class="col-12 col-md-6 col-lg-4 mb-4">
       <div class="card draw-card shadow-sm h-100 revealed" style="border-color: {{ category_colors[offer.category] }};">
         {% if offer.image_url %}
-        <img src="{{ offer.image_url }}" class="card-img-top" alt="{{ offer.name }}">
+        <img src="{{ offer.image_url }}" class="card-img-top" alt="{{ offer.name }}" loading="lazy">
         {% endif %}
         <div class="card-body">
           <h5 class="card-title text-center">{{ offer.name }}</h5>
           <p class="card-text text-center">{{ offer.category }}</p>
-          <p class="text-center"><small>Proposé par {{ offer.owner_name }}</small></p>
+          <p class="text-center mb-1"><small>Proposé par {{ offer.owner_name }}</small></p>
+          {% if offer.comment %}
+            <p class="text-center"><small class="text-muted">« {{ offer.comment }} »</small></p>
+          {% endif %}
           <form method="post" action="{{ url_for('take_offer', offer_id=offer.id) }}">
             <div class="mb-2">
               <select class="form-select" name="offered_card" required>
@@ -57,7 +60,11 @@
         {% endfor %}
       </select>
     </div>
-    <div class="col-12 col-md-6 d-flex align-items-end">
+    <div class="col-12 col-md-6">
+      <label for="comment" class="form-label">Commentaire (facultatif) :</label>
+      <input type="text" class="form-control" id="comment" name="comment" maxlength="200" placeholder="Ajouter un commentaire…">
+    </div>
+    <div class="col-12 d-flex justify-content-end">
       <button type="submit" class="btn btn-success">Déposer</button>
     </div>
   </form>

@@ -807,7 +807,9 @@ def card_image(file_id: str) -> Any:
         try:
             file_data = drive_service.files().get_media(fileId=file_id).execute()
         except ssl.SSLError as e:
-            app.logger.error(f"SSL error retrieving image {file_id}: {e}")
+            app.logger.warning(
+                f"SSL error retrieving image {file_id}: {e}; trying public URL"
+            )
             try:
                 mime_type = file_mime_types.get(file_id)
                 if not mime_type:

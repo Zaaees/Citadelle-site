@@ -114,7 +114,8 @@ credentials = Credentials.from_service_account_info(
 )
 
 gspread_client = gspread.authorize(credentials)
-drive_service = build('drive', 'v3', credentials=credentials)
+\1
+authed_session = AuthorizedSession(creds)
 spreadsheet = gspread_client.open_by_key(GOOGLE_SHEET_ID_CARTES)
 
 # Inventory sheet (cards owned by players).  The first sheet stores inventory.
@@ -807,48 +808,47 @@ def logout() -> Any:
     session.pop('user', None)
     return redirect(url_for('index'))
 
+
 @app.route('/card_image/<file_id>')
 def card_image(file_id: str) -> Any:
-    """Serve an image from Google Drive by file ID."""
+    """Serve an image from Google Drive by file ID.
+
+    Uses a requests-based AuthorizedSession to avoid httplib2 TLS issues on Render,
+    and always returns the raw bytes with the correct Content-Type.
+    """
     cached = image_cache.get(file_id)
     if cached is not None:
         mime_type = file_mime_types.get(file_id, "application/octet-stream")
         return Response(cached, mimetype=mime_type)
+
     try:
-        file_data = drive_service.files().get_media(fileId=file_id).execute()
-    except Exception as e:
-        app.logger.warning(
-            f"Drive API error retrieving image {file_id}: {e}; trying public URL"
+        meta_resp = authed_session.get(
+            f"https://www.googleapis.com/drive/v3/files/{file_id}",
+            params={"fields": "mimeType,name", "supportsAllDrives": "true"},
+            timeout=20
         )
-        mime_type = file_mime_types.get(file_id)
-        if not mime_type:
-            try:
-                meta = drive_service.files().get(fileId=file_id, fields="mimeType").execute()
-                mime_type = meta.get("mimeType", "application/octet-stream")
-                file_mime_types[file_id] = mime_type
-            except Exception:
-                mime_type = "application/octet-stream"
-        url = f"https://drive.google.com/uc?export=download&id={file_id}"
-        try:
-            with requests.get(url, timeout=10, verify=False) as r:
-                if r.status_code == 200:
-                    image_cache[file_id] = r.content
-                    return Response(r.content, mimetype=mime_type)
-                app.logger.warning(
-                    f"Public URL fetch failed for {file_id}: status {r.status_code}"
-                )
-        except requests.RequestException as fallback_err:
-            app.logger.warning(
-                f"Public URL fetch error for {file_id}: {fallback_err}"
-            )
-        return ('', 404)
-    mime_type = file_mime_types.get(file_id)
-    if not mime_type:
-        meta = drive_service.files().get(fileId=file_id, fields="mimeType").execute()
-        mime_type = meta.get("mimeType", "application/octet-stream")
+        meta_resp.raise_for_status()
+        mime_type = (meta_resp.json() or {}).get("mimeType", "application/octet-stream")
         file_mime_types[file_id] = mime_type
-    image_cache[file_id] = file_data
-    return Response(file_data, mimetype=mime_type)
+
+        data_resp = authed_session.get(
+            f"https://www.googleapis.com/drive/v3/files/{file_id}",
+            params={"alt": "media", "supportsAllDrives": "true"},
+            timeout=60
+        )
+        data_resp.raise_for_status()
+        data = data_resp.content
+
+        image_cache[file_id] = data
+        return Response(data, mimetype=mime_type)
+    except Exception as e:
+        app.logger.warning(f"Drive fetch error for {file_id}: {e}")
+        transparent_png = (
+            b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89"
+            b"\x00\x00\x00\x0cIDATx\x9cc\x00\x01\x00\x00\x05\x00\x01\x0d\n\x2d\xb4\x00\x00\x00\x00IEND\xaeB`\x82"
+        )
+        return Response(transparent_png, mimetype="image/png", status=200)
+
 
 @app.route('/draw')
 @login_required

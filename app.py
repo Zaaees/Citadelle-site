@@ -159,7 +159,13 @@ FOLDER_IDS = {
     "Secrète": os.getenv('FOLDER_SECRETE_ID'),
 }
 
+# Mapping of category names to their respective cards. Each card entry
+# includes its Google Drive file ID, the original file name and the
+# associated MIME type.
 cards_by_category: Dict[str, List[Dict[str, str]]] = {}
+
+# Lookup table to retrieve a file's MIME type by its Drive ID.
+file_mime_types: Dict[str, str] = {}
 
 # Expose a mapping from rarity category to a distinct border colour.  These
 # values are used in the gallery template to colour‑code cards according to
@@ -187,8 +193,9 @@ usernames_map: Dict[str, str] = {}
 
 def load_card_files() -> None:
     """Populate ``cards_by_category`` by listing image files in each Drive folder."""
-    global cards_by_category
+    global cards_by_category, file_mime_types
     cards_by_category = {}
+    file_mime_types = {}
     for category in ALL_CATEGORIES:
         folder_id = FOLDER_IDS.get(category)
         if not folder_id:
@@ -200,11 +207,13 @@ def load_card_files() -> None:
                 fields="files(id, name, mimeType)"
             ).execute()
             files = [
-                {"id": f["id"], "name": f["name"]}
+                {"id": f["id"], "name": f["name"], "mimeType": f.get("mimeType")}
                 for f in results.get('files', [])
-                if f['name'].lower().endswith('.png')
             ]
             cards_by_category[category] = files
+            for f in files:
+                if f.get("mimeType"):
+                    file_mime_types[f["id"]] = f["mimeType"]
         except Exception as e:
             app.logger.error(f"Failed to load cards for category {category}: {e}")
             cards_by_category[category] = []
@@ -794,7 +803,12 @@ def card_image(file_id: str) -> Any:
     """Serve an image from Google Drive by file ID."""
     try:
         file_data = drive_service.files().get_media(fileId=file_id).execute()
-        return Response(file_data, mimetype='image/png')
+        mime_type = file_mime_types.get(file_id)
+        if not mime_type:
+            meta = drive_service.files().get(fileId=file_id, fields="mimeType").execute()
+            mime_type = meta.get("mimeType", "application/octet-stream")
+            file_mime_types[file_id] = mime_type
+        return Response(file_data, mimetype=mime_type)
     except Exception as e:
         app.logger.error(f"Error retrieving image {file_id}: {e}")
         return ('', 404)

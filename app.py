@@ -173,6 +173,9 @@ cards_by_category: Dict[str, List[Dict[str, str]]] = {}
 # Lookup table to retrieve a file's MIME type by its Drive ID.
 file_mime_types: Dict[str, str] = {}
 
+# Simple in-memory cache of image bytes to avoid repeated Drive fetches.
+image_cache: Dict[str, bytes] = {}
+
 # Expose a mapping from rarity category to a distinct border colour.  These
 # values are used in the gallery template to colour‑code cards according to
 # their rarity.  Feel free to adjust the hex values to better match your
@@ -807,46 +810,45 @@ def logout() -> Any:
 @app.route('/card_image/<file_id>')
 def card_image(file_id: str) -> Any:
     """Serve an image from Google Drive by file ID."""
+    cached = image_cache.get(file_id)
+    if cached is not None:
+        mime_type = file_mime_types.get(file_id, "application/octet-stream")
+        return Response(cached, mimetype=mime_type)
     try:
-        try:
-            file_data = drive_service.files().get_media(fileId=file_id).execute()
-        except ssl.SSLError as e:
-            app.logger.warning(
-                f"SSL error retrieving image {file_id}: {e}; trying API fetch"
-            )
-            mime_type = file_mime_types.get(file_id)
-            if not mime_type:
+        file_data = drive_service.files().get_media(fileId=file_id).execute()
+    except Exception as e:
+        app.logger.warning(
+            f"Drive API error retrieving image {file_id}: {e}; trying public URL"
+        )
+        mime_type = file_mime_types.get(file_id)
+        if not mime_type:
+            try:
                 meta = drive_service.files().get(fileId=file_id, fields="mimeType").execute()
                 mime_type = meta.get("mimeType", "application/octet-stream")
                 file_mime_types[file_id] = mime_type
-            try:
-                if not credentials.valid:
-                    credentials.refresh(GoogleRequest())
-                url = f"https://www.googleapis.com/drive/v3/files/{file_id}?alt=media"
-                headers = {"Authorization": f"Bearer {credentials.token}"}
-                r = requests.get(url, headers=headers, timeout=10, verify=False)
-                if (
-                    r.status_code == 200
-                    and r.headers.get("Content-Type", "").startswith("image/")
-                ):
+            except Exception:
+                mime_type = "application/octet-stream"
+        url = f"https://drive.google.com/uc?export=download&id={file_id}"
+        try:
+            with requests.get(url, timeout=10, verify=False) as r:
+                if r.status_code == 200:
+                    image_cache[file_id] = r.content
                     return Response(r.content, mimetype=mime_type)
-                app.logger.error(
-                    f"Fallback download failed for {file_id}: status {r.status_code}"
+                app.logger.warning(
+                    f"Public URL fetch failed for {file_id}: status {r.status_code}"
                 )
-            except requests.exceptions.RequestException as fallback_err:
-                app.logger.error(
-                    f"Fallback error retrieving image {file_id}: {fallback_err}"
-                )
-            return ('', 404)
-        mime_type = file_mime_types.get(file_id)
-        if not mime_type:
-            meta = drive_service.files().get(fileId=file_id, fields="mimeType").execute()
-            mime_type = meta.get("mimeType", "application/octet-stream")
-            file_mime_types[file_id] = mime_type
-        return Response(file_data, mimetype=mime_type)
-    except Exception as e:
-        app.logger.error(f"Error retrieving image {file_id}: {e}")
+        except requests.RequestException as fallback_err:
+            app.logger.warning(
+                f"Public URL fetch error for {file_id}: {fallback_err}"
+            )
         return ('', 404)
+    mime_type = file_mime_types.get(file_id)
+    if not mime_type:
+        meta = drive_service.files().get(fileId=file_id, fields="mimeType").execute()
+        mime_type = meta.get("mimeType", "application/octet-stream")
+        file_mime_types[file_id] = mime_type
+    image_cache[file_id] = file_data
+    return Response(file_data, mimetype=mime_type)
 
 @app.route('/draw')
 @login_required

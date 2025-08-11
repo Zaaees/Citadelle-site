@@ -41,6 +41,7 @@ from googleapiclient.discovery import build
 import gspread
 import requests
 import urllib3
+from google.auth.transport.requests import Request as GoogleRequest
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -811,17 +812,23 @@ def card_image(file_id: str) -> Any:
             file_data = drive_service.files().get_media(fileId=file_id).execute()
         except ssl.SSLError as e:
             app.logger.warning(
-                f"SSL error retrieving image {file_id}: {e}; trying public URL"
+                f"SSL error retrieving image {file_id}: {e}; trying API fetch"
             )
             mime_type = file_mime_types.get(file_id)
             if not mime_type:
                 meta = drive_service.files().get(fileId=file_id, fields="mimeType").execute()
                 mime_type = meta.get("mimeType", "application/octet-stream")
                 file_mime_types[file_id] = mime_type
-            url = f"https://drive.google.com/uc?export=download&id={file_id}"
             try:
-                r = requests.get(url, timeout=10, verify=False)
-                if r.status_code == 200:
+                if not credentials.valid:
+                    credentials.refresh(GoogleRequest())
+                url = f"https://www.googleapis.com/drive/v3/files/{file_id}?alt=media"
+                headers = {"Authorization": f"Bearer {credentials.token}"}
+                r = requests.get(url, headers=headers, timeout=10, verify=False)
+                if (
+                    r.status_code == 200
+                    and r.headers.get("Content-Type", "").startswith("image/")
+                ):
                     return Response(r.content, mimetype=mime_type)
                 app.logger.error(
                     f"Fallback download failed for {file_id}: status {r.status_code}"

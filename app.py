@@ -820,20 +820,17 @@ def card_image(file_id: str) -> Any:
                 file_mime_types[file_id] = mime_type
             url = f"https://drive.google.com/uc?export=download&id={file_id}"
             try:
-                with requests.get(url, timeout=10, verify=False) as r:
-                    if r.status_code == 200:
-                        content = r.content
-                    else:
-                        app.logger.error(
-                            f"Fallback download failed for {file_id}: status {r.status_code}"
-                        )
-                        return ('', 404)
+                r = requests.get(url, timeout=10, verify=False)
+                if r.status_code == 200:
+                    return Response(r.content, mimetype=mime_type)
+                app.logger.error(
+                    f"Fallback download failed for {file_id}: status {r.status_code}"
+                )
             except requests.exceptions.RequestException as fallback_err:
                 app.logger.error(
                     f"Fallback error retrieving image {file_id}: {fallback_err}"
                 )
-                return ('', 404)
-            return Response(content, mimetype=mime_type)
+            return ('', 404)
         mime_type = file_mime_types.get(file_id)
         if not mime_type:
             meta = drive_service.files().get(fileId=file_id, fields="mimeType").execute()

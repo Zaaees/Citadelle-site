@@ -25,6 +25,7 @@ import os
 import json
 import random
 import hashlib
+import ssl
 from datetime import datetime
 from functools import wraps
 from typing import List, Dict, Tuple, Optional, Any
@@ -38,6 +39,10 @@ from dotenv import load_dotenv
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 import gspread
+import requests
+import urllib3
+
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 ###############################################################################
 # Environment and application setup
@@ -802,7 +807,30 @@ def logout() -> Any:
 def card_image(file_id: str) -> Any:
     """Serve an image from Google Drive by file ID."""
     try:
-        file_data = drive_service.files().get_media(fileId=file_id).execute()
+        try:
+            file_data = drive_service.files().get_media(fileId=file_id).execute()
+        except ssl.SSLError as e:
+            app.logger.warning(
+                f"SSL error retrieving image {file_id}: {e}; trying public URL"
+            )
+            mime_type = file_mime_types.get(file_id)
+            if not mime_type:
+                meta = drive_service.files().get(fileId=file_id, fields="mimeType").execute()
+                mime_type = meta.get("mimeType", "application/octet-stream")
+                file_mime_types[file_id] = mime_type
+            url = f"https://drive.google.com/uc?export=download&id={file_id}"
+            try:
+                r = requests.get(url, timeout=10, verify=False)
+                if r.status_code == 200:
+                    return Response(r.content, mimetype=mime_type)
+                app.logger.error(
+                    f"Fallback download failed for {file_id}: status {r.status_code}"
+                )
+            except requests.exceptions.RequestException as fallback_err:
+                app.logger.error(
+                    f"Fallback error retrieving image {file_id}: {fallback_err}"
+                )
+            return ('', 404)
         mime_type = file_mime_types.get(file_id)
         if not mime_type:
             meta = drive_service.files().get(fileId=file_id, fields="mimeType").execute()

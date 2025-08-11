@@ -114,7 +114,6 @@ credentials = Credentials.from_service_account_info(
 )
 
 gspread_client = gspread.authorize(credentials)
-\1
 authed_session = AuthorizedSession(creds)
 spreadsheet = gspread_client.open_by_key(GOOGLE_SHEET_ID_CARTES)
 

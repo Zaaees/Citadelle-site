@@ -23,7 +23,7 @@
         <div class="col-6 col-sm-4 col-md-3 mb-4">
           <div class="card draw-card shadow-sm h-100 revealed" style="border-color: {{ category_colors[cat] }};">
             {% if card.image_url %}
-            <img src="{{ card.image_url }}" class="card-img-top" alt="{{ card.name }}" loading="lazy">
+            <img src="{{ url_for('card_image', file_id=(card.file_id if card.file_id is defined else (card.gdrive_id if card.gdrive_id is defined else (card.id if card.id is defined else card))) ) }" class="card-img-top" alt="{{ card.name }}" loading="lazy">
             {% endif %}
             <div class="card-body text-center">
               <h6 class="card-title mb-1">{{ card.name }}</h6>

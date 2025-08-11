@@ -19,7 +19,7 @@
     <div class="col-12 col-md-6 col-lg-4 mb-4">
       <div class="card draw-card shadow-sm h-100 revealed" style="border-color: {{ category_colors[offer.category] }};">
         {% if offer.image_url %}
-        <img src="{{ offer.image_url }}" class="card-img-top" alt="{{ offer.name }}" loading="lazy">
+        <img src="{{ url_for('card_image', file_id=(offer.file_id if offer.file_id is defined else (offer.gdrive_id if offer.gdrive_id is defined else (offer.id if offer.id is defined else offer))) ) }" class="card-img-top" alt="{{ offer.name }}" loading="lazy">
         {% endif %}
         <div class="card-body">
           <h5 class="card-title text-center">{{ offer.name }}</h5>

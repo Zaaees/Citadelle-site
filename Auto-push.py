@@ -3,7 +3,7 @@ import subprocess
 from datetime import datetime
 
 # 📂 Mets ici le chemin vers ton projet
-REPO_PATH = r"F:\Users\freed\Desktop\Citadelle site\Citadelle-site"  
+REPO_PATH = r"C:\Users\freed\Desktop\Code site\Citadelle-site"  
 
 def run_cmd(cmd):
     """Exécute une commande shell et affiche sa sortie."""

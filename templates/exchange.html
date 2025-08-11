@@ -19,7 +19,7 @@
     <div class="col-12 col-md-6 col-lg-4 mb-4">
       <div class="card draw-card shadow-sm h-100 revealed" style="border-color: {{ category_colors[offer.category] }};">
         {% if offer.image_url %}
-        <img src="{{ url_for('card_image', file_id=(offer.file_id if offer.file_id is defined else (offer.gdrive_id if offer.gdrive_id is defined else (offer.id if offer.id is defined else offer))) ) }}}\" class="card-img-top" alt="{{ offer.name }}" loading="lazy">
+        <img src="{{ url_for('card_image', file_id=(offer.file_id if offer.file_id is defined else (offer.gdrive_id if offer.gdrive_id is defined else (offer.id if offer.id is defined else offer))) ) }}\" class="card-img-top" alt="{{ offer.name }}" loading="lazy">
         {% endif %}
         <div class="card-body">
           <h5 class="card-title text-center">{{ offer.name }}</h5>
@@ -28,7 +28,7 @@
           {% if offer.comment %}
             <p class="text-center"><small class="text-muted">« {{ offer.comment }} »</small></p>
           {% endif %}
-          <form method="post" action="{{ url_for('take_offer', offer_id=offer.id) }}}">
+          <form method="post" action="{{ url_for('take_offer', offer_id=offer.id) }}">
             <div class="mb-2">
               <select class="form-select" name="offered_card" required>
                 <option value="" disabled selected>Sélectionner votre carte</option>
@@ -50,7 +50,7 @@
 
   <hr class="my-5">
   <h2 class="h4 mb-3">Déposer une carte</h2>
-  <form method="post" action="{{ url_for('deposit_offer') }}}" class="row g-3">
+  <form method="post" action="{{ url_for('deposit_offer') }}" class="row g-3">
     <div class="col-12 col-md-6">
       <label for="card" class="form-label">Choisissez une carte de votre collection :</label>
       <select class="form-select" id="card" name="card_key" required>

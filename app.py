@@ -817,13 +817,13 @@ def card_image(file_id: str) -> Any:
                     mime_type = meta.get("mimeType", "application/octet-stream")
                     file_mime_types[file_id] = mime_type
                 url = f"https://drive.google.com/uc?export=download&id={file_id}"
-                r = requests.get(url, timeout=10, verify=not app.debug)
-                if r.status_code == 200:
-                    return Response(r.content, mimetype=mime_type)
-                app.logger.error(
-                    f"Fallback download failed for {file_id}: status {r.status_code}"
-                )
-            except Exception as fallback_err:
+                with requests.get(url, timeout=10, verify=False) as r:
+                    if r.status_code == 200:
+                        return Response(r.content, mimetype=mime_type)
+                    app.logger.error(
+                        f"Fallback download failed for {file_id}: status {r.status_code}"
+                    )
+            except requests.exceptions.RequestException as fallback_err:
                 app.logger.error(
                     f"Fallback error retrieving image {file_id}: {fallback_err}"
                 )
